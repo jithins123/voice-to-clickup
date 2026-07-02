@@ -1,25 +1,36 @@
 :root {
-  color-scheme: light;
-  --bg: #f6f7f4;
-  --ink: #18211f;
-  --muted: #65706d;
-  --line: #d9dfd7;
-  --panel: #ffffff;
-  --accent: #0f766e;
-  --accent-strong: #0b5e57;
-  --warm: #c1492e;
-  --blue: #355c9a;
-  --shadow: 0 18px 50px rgba(25, 33, 31, 0.08);
+  color-scheme: dark;
+  --bg: #060607;
+  --bg-soft: #10100e;
+  --ink: #f7f4ec;
+  --muted: #b9b2a5;
+  --line: rgba(211, 177, 111, 0.28);
+  --panel: #11110f;
+  --panel-strong: #171612;
+  --accent: #d1ad68;
+  --accent-strong: #f0d189;
+  --warm: #d6673f;
+  --blue: #7ea2d6;
+  --field: #080808;
+  --shadow: 0 24px 70px rgba(0, 0, 0, 0.34);
 }
 
 * {
   box-sizing: border-box;
 }
 
+html {
+  background: var(--bg);
+}
+
 body {
   margin: 0;
+  min-width: 0;
   min-height: 100vh;
-  background: var(--bg);
+  overflow-x: hidden;
+  background:
+    radial-gradient(circle at 50% -10%, rgba(209, 173, 104, 0.16), transparent 35%),
+    linear-gradient(180deg, #080808 0%, #060607 48%, #0f0e0b 100%);
   color: var(--ink);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -28,7 +39,13 @@ button,
 textarea,
 input,
 select {
+  max-width: 100%;
+  min-width: 0;
   font: inherit;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
 }
 
 .app-shell {
@@ -37,8 +54,10 @@ select {
 }
 
 .workspace {
+  display: flex;
   width: min(1180px, 100%);
   margin: 0 auto;
+  flex-direction: column;
 }
 
 .topbar {
@@ -52,9 +71,9 @@ select {
 .eyebrow {
   margin: 0 0 8px;
   color: var(--accent);
-  font-size: 0.78rem;
-  font-weight: 800;
-  letter-spacing: 0;
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
@@ -65,38 +84,44 @@ p {
 }
 
 h1 {
-  max-width: 720px;
+  max-width: 760px;
   margin-bottom: 0;
-  font-size: clamp(2rem, 5vw, 4rem);
-  line-height: 1;
+  color: #ffffff;
+  font-size: clamp(2.25rem, 5vw, 4.8rem);
+  font-weight: 950;
+  line-height: 0.96;
   letter-spacing: 0;
+  text-transform: uppercase;
+  text-wrap: balance;
 }
 
 h2 {
   margin-bottom: 0;
+  color: #ffffff;
   font-size: 1rem;
 }
 
 .status-pill {
-  min-width: 148px;
+  min-width: 132px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--panel);
+  background: rgba(17, 17, 15, 0.86);
   padding: 10px 12px;
   color: var(--muted);
-  font-size: 0.86rem;
+  font-size: 0.82rem;
+  font-weight: 800;
   text-align: center;
   box-shadow: var(--shadow);
 }
 
 .status-pill.ready {
   color: var(--accent-strong);
-  border-color: rgba(15, 118, 110, 0.35);
+  border-color: rgba(209, 173, 104, 0.6);
 }
 
 .status-pill.warn {
   color: var(--warm);
-  border-color: rgba(193, 73, 46, 0.35);
+  border-color: rgba(214, 103, 63, 0.45);
 }
 
 .guide-strip {
@@ -109,7 +134,7 @@ h2 {
 .guide-strip div {
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.74);
+  background: rgba(255, 255, 255, 0.04);
   padding: 12px;
 }
 
@@ -120,12 +145,13 @@ h2 {
 
 .guide-strip strong {
   margin-bottom: 4px;
-  font-size: 0.88rem;
+  color: #ffffff;
+  font-size: 0.84rem;
 }
 
 .guide-strip span {
   color: var(--muted);
-  font-size: 0.84rem;
+  font-size: 0.82rem;
   line-height: 1.35;
 }
 
@@ -133,7 +159,7 @@ h2 {
 .panel {
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--panel);
+  background: rgba(17, 17, 15, 0.94);
   box-shadow: var(--shadow);
 }
 
@@ -164,20 +190,23 @@ h2 {
   height: 72px;
   flex: 0 0 auto;
   place-items: center;
-  border: 0;
+  border: 1px solid rgba(240, 209, 137, 0.45);
   border-radius: 50%;
   background: var(--accent);
+  box-shadow: 0 0 0 8px rgba(209, 173, 104, 0.1);
   cursor: pointer;
   touch-action: none;
-  transition: transform 160ms ease, background 160ms ease;
+  transition: transform 160ms ease, background 160ms ease, box-shadow 160ms ease;
 }
 
 .record-button:hover {
   transform: translateY(-1px);
+  box-shadow: 0 0 0 10px rgba(209, 173, 104, 0.15);
 }
 
 .record-button.recording {
   background: var(--warm);
+  box-shadow: 0 0 0 10px rgba(214, 103, 63, 0.2);
 }
 
 .record-button:disabled {
@@ -189,7 +218,7 @@ h2 {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: white;
+  background: #070707;
 }
 
 .record-button.recording .record-dot {
@@ -206,32 +235,33 @@ h2 {
 .primary-button,
 .secondary-button,
 .task-button {
-  min-height: 42px;
+  min-height: 44px;
   border-radius: 8px;
   padding: 0 16px;
   border: 1px solid transparent;
   cursor: pointer;
-  font-weight: 750;
+  font-weight: 850;
 }
 
 .primary-button {
-  background: var(--ink);
-  color: white;
+  background: var(--accent);
+  color: #070707;
 }
 
 .secondary-button {
-  background: white;
+  background: transparent;
   color: var(--ink);
   border-color: var(--line);
 }
 
 .grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(330px, 0.8fr);
+  grid-template-columns: minmax(0, 1.08fr) minmax(360px, 0.92fr);
   gap: 18px;
 }
 
 .panel {
+  min-width: 0;
   min-height: 560px;
   overflow: hidden;
 }
@@ -258,9 +288,15 @@ textarea {
   border: 0;
   outline: 0;
   padding: 18px;
+  background: rgba(8, 8, 8, 0.86);
   color: var(--ink);
   font-size: 1.04rem;
   line-height: 1.58;
+}
+
+textarea::placeholder,
+input::placeholder {
+  color: #8f897d;
 }
 
 .tasks-panel {
@@ -271,46 +307,48 @@ textarea {
 .manual-task-form {
   border-bottom: 1px solid var(--line);
   padding: 14px;
-  background: #fbfcfa;
+  background: var(--panel-strong);
 }
 
 .manual-task-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 140px;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
   gap: 10px;
   margin-bottom: 10px;
 }
 
 .manual-task-form label {
   display: grid;
+  min-width: 0;
   gap: 6px;
 }
 
 .manual-task-form label span {
   color: var(--muted);
-  font-size: 0.78rem;
-  font-weight: 750;
+  font-size: 0.76rem;
+  font-weight: 850;
 }
 
 .manual-task-form input,
 .manual-task-form select,
 .manual-task-form textarea {
   width: 100%;
+  min-width: 0;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: white;
+  background: var(--field);
   color: var(--ink);
   outline: 0;
 }
 
 .manual-task-form input,
 .manual-task-form select {
-  min-height: 38px;
+  min-height: 42px;
   padding: 0 10px;
 }
 
 .manual-task-form textarea {
-  min-height: 70px;
+  min-height: 74px;
   padding: 10px;
   resize: vertical;
   font-size: 0.92rem;
@@ -320,8 +358,8 @@ textarea {
 .manual-task-form input:focus,
 .manual-task-form select:focus,
 .manual-task-form textarea:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
+  border-color: var(--accent-strong);
+  box-shadow: 0 0 0 3px rgba(209, 173, 104, 0.16);
 }
 
 .manual-description {
@@ -334,6 +372,7 @@ textarea {
 
 #tasks {
   flex: 1;
+  min-width: 0;
   padding: 14px;
   overflow: auto;
 }
@@ -349,7 +388,7 @@ textarea {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 14px;
-  background: #fbfcfa;
+  background: #0c0c0b;
 }
 
 .task-card + .task-card {
@@ -366,24 +405,26 @@ textarea {
 
 .task-card h3 {
   margin: 0;
+  color: #ffffff;
   font-size: 1rem;
+  overflow-wrap: anywhere;
 }
 
 .remove-task-button {
-  min-height: 30px;
-  border: 1px solid var(--line);
+  min-height: 32px;
+  border: 1px solid rgba(214, 103, 63, 0.45);
   border-radius: 8px;
-  background: white;
-  color: var(--warm);
+  background: transparent;
+  color: #ff9b78;
   cursor: pointer;
   font-size: 0.78rem;
-  font-weight: 750;
+  font-weight: 800;
   padding: 0 10px;
 }
 
 .remove-task-button:hover {
-  border-color: rgba(193, 73, 46, 0.45);
-  background: #fff6f3;
+  border-color: rgba(214, 103, 63, 0.75);
+  background: rgba(214, 103, 63, 0.1);
 }
 
 .task-card p {
@@ -413,24 +454,24 @@ textarea {
 
 .task-control select {
   width: 100%;
-  min-height: 38px;
+  min-height: 40px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: white;
+  background: var(--field);
   color: var(--ink);
   padding: 0 10px;
   outline: 0;
 }
 
 .task-control select:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
+  border-color: var(--accent-strong);
+  box-shadow: 0 0 0 3px rgba(209, 173, 104, 0.16);
 }
 
 .task-status {
   min-height: 18px;
   margin-bottom: 10px !important;
-  color: var(--warm) !important;
+  color: #ff9b78 !important;
   font-size: 0.82rem;
   overflow-wrap: anywhere;
 }
@@ -444,28 +485,28 @@ textarea {
 
 .meta {
   border-radius: 999px;
-  background: #eef3f2;
+  background: rgba(209, 173, 104, 0.12);
   padding: 5px 8px;
-  color: #31413e;
+  color: var(--accent-strong);
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: 750;
 }
 
 .meta.priority-high,
 .meta.priority-urgent {
-  background: #fde9e5;
-  color: #98331f;
+  background: rgba(214, 103, 63, 0.14);
+  color: #ff9b78;
 }
 
 .meta.priority-low {
-  background: #eef2fb;
+  background: rgba(126, 162, 214, 0.14);
   color: var(--blue);
 }
 
 .task-button {
   width: 100%;
   background: var(--accent);
-  color: white;
+  color: #070707;
 }
 
 .task-button.sent {
@@ -477,9 +518,23 @@ textarea {
   opacity: 0.72;
 }
 
+@media (max-width: 980px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .panel {
+    min-height: auto;
+  }
+
+  textarea {
+    min-height: 300px;
+  }
+}
+
 @media (max-width: 820px) {
   .app-shell {
-    padding: 18px;
+    padding: 16px;
   }
 
   .topbar,
@@ -488,26 +543,116 @@ textarea {
     align-items: stretch;
   }
 
-  .guide-strip,
-  .grid,
-  .manual-task-grid {
+  .topbar {
+    margin-bottom: 14px;
+  }
+
+  h1 {
+    font-size: clamp(2rem, 13vw, 3.4rem);
+  }
+
+  .status-pill {
+    align-self: flex-start;
+    min-width: 112px;
+  }
+
+  .control-surface {
+    order: 1;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    margin-inline: -16px;
+    border-radius: 0;
+    border-right: 0;
+    border-left: 0;
+    padding: 14px 16px;
+  }
+
+  .grid {
+    order: 2;
+    gap: 14px;
+  }
+
+  .guide-strip {
+    order: 3;
     grid-template-columns: 1fr;
+    gap: 8px;
+    margin: 14px 0 0;
   }
 
-  .panel {
-    min-height: 420px;
+  .guide-strip div {
+    padding: 10px 12px;
   }
 
-  textarea {
-    min-height: 360px;
+  .guide-strip span {
+    display: none;
+  }
+
+  .mic-panel {
+    gap: 14px;
+  }
+
+  .record-button {
+    width: 64px;
+    height: 64px;
   }
 
   .action-row {
+    display: grid;
+    grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
     justify-content: stretch;
   }
 
   .primary-button,
   .secondary-button {
-    flex: 1;
+    width: 100%;
+    padding: 0 12px;
+  }
+
+  .manual-task-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .panel-heading {
+    min-height: 52px;
+  }
+
+  textarea {
+    min-height: 240px;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-shell {
+    padding: 12px;
+  }
+
+  .control-surface {
+    margin-inline: -12px;
+    padding: 12px;
+  }
+
+  .mic-panel {
+    align-items: flex-start;
+  }
+
+  .record-button {
+    width: 58px;
+    height: 58px;
+  }
+
+  .record-dot {
+    width: 20px;
+    height: 20px;
+  }
+
+  .manual-task-form,
+  #tasks,
+  .task-card {
+    padding: 12px;
+  }
+
+  .panel-heading {
+    padding: 0 12px;
   }
 }
