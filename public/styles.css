@@ -292,9 +292,34 @@ textarea {
   margin-top: 12px;
 }
 
+.task-card-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  margin-bottom: 8px;
+}
+
 .task-card h3 {
-  margin: 0 0 8px;
+  margin: 0;
   font-size: 1rem;
+}
+
+.remove-task-button {
+  min-height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  color: var(--warm);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 750;
+  padding: 0 10px;
+}
+
+.remove-task-button:hover {
+  border-color: rgba(193, 73, 46, 0.45);
+  background: #fff6f3;
 }
 
 .task-card p {
