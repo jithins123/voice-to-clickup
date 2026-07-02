@@ -8,7 +8,13 @@ const els = {
   transcript: document.querySelector("#transcript"),
   transcriptCount: document.querySelector("#transcriptCount"),
   tasks: document.querySelector("#tasks"),
-  taskCount: document.querySelector("#taskCount")
+  taskCount: document.querySelector("#taskCount"),
+  manualTaskForm: document.querySelector("#manualTaskForm"),
+  manualTaskName: document.querySelector("#manualTaskName"),
+  manualTaskDescription: document.querySelector("#manualTaskDescription"),
+  manualTaskPriority: document.querySelector("#manualTaskPriority"),
+  manualTaskStart: document.querySelector("#manualTaskStart"),
+  manualTaskDue: document.querySelector("#manualTaskDue")
 };
 
 let config = {};
@@ -74,6 +80,7 @@ function bindEvents() {
 
   els.extractButton.addEventListener("click", extractTasks);
   els.transcript.addEventListener("input", updateWordCount);
+  els.manualTaskForm.addEventListener("submit", addManualTask);
 }
 
 function endHold() {
@@ -328,6 +335,30 @@ async function extractTasks() {
   }
 }
 
+function addManualTask(event) {
+  event.preventDefault();
+
+  const task = normalizeClientTask({
+    name: els.manualTaskName.value,
+    description: els.manualTaskDescription.value,
+    priority: els.manualTaskPriority.value,
+    start_date: dateTimeLocalToIso(els.manualTaskStart.value),
+    due_date: dateTimeLocalToIso(els.manualTaskDue.value),
+    tags: [],
+    confidence: 1
+  });
+
+  if (!task.name) {
+    els.manualTaskName.focus();
+    return;
+  }
+
+  taskDrafts = [task, ...taskDrafts];
+  renderTasks();
+  els.manualTaskForm.reset();
+  setStatusText("Manual task added", "You can send it to ClickUp without using AI extraction.");
+}
+
 function mergeTasks(existing, incoming) {
   const seen = new Set(existing.map(taskKey));
   const next = [...existing];
@@ -501,6 +532,12 @@ function formatTaskDate(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+}
+
+function dateTimeLocalToIso(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
 function appendTranscript(text) {
