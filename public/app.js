@@ -477,9 +477,31 @@ function setSetupStatus() {
 
 async function fetchJson(url, options) {
   const response = await fetch(url, options);
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(data.error || "Request failed");
+  const text = await response.text();
+  let data = {};
+
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { error: cleanResponseText(text) };
+    }
   }
+
+  if (!response.ok) {
+    const message = data.error || data.message || cleanResponseText(text) || `${response.status} ${response.statusText}`;
+    throw new Error(message);
+  }
+
   return data;
+}
+
+function cleanResponseText(text) {
+  return String(text || "")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 500);
 }
