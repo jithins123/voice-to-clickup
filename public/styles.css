@@ -45,7 +45,7 @@ input {
   align-items: flex-start;
   justify-content: space-between;
   gap: 20px;
-  margin-bottom: 22px;
+  margin-bottom: 18px;
 }
 
 .eyebrow {
@@ -98,6 +98,36 @@ h2 {
   border-color: rgba(193, 73, 46, 0.35);
 }
 
+.guide-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.guide-strip div {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.74);
+  padding: 12px;
+}
+
+.guide-strip strong,
+.guide-strip span {
+  display: block;
+}
+
+.guide-strip strong {
+  margin-bottom: 4px;
+  font-size: 0.88rem;
+}
+
+.guide-strip span {
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.35;
+}
+
 .control-surface,
 .panel {
   border: 1px solid var(--line);
@@ -137,6 +167,7 @@ h2 {
   border-radius: 50%;
   background: var(--accent);
   cursor: pointer;
+  touch-action: none;
   transition: transform 160ms ease, background 160ms ease;
 }
 
@@ -146,6 +177,11 @@ h2 {
 
 .record-button.recording {
   background: var(--warm);
+}
+
+.record-button:disabled {
+  cursor: wait;
+  opacity: 0.75;
 }
 
 .record-dot {
@@ -266,6 +302,14 @@ textarea {
   line-height: 1.45;
 }
 
+.task-status {
+  min-height: 18px;
+  margin-bottom: 10px !important;
+  color: var(--warm) !important;
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
 .meta-row {
   display: flex;
   flex-wrap: wrap;
@@ -319,6 +363,7 @@ textarea {
     align-items: stretch;
   }
 
+  .guide-strip,
   .grid {
     grid-template-columns: 1fr;
   }
