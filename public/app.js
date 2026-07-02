@@ -25,6 +25,7 @@ let partialTranscript = "";
 let taskDrafts = [];
 let streamedTranscriptItems = new Set();
 let transcriptWaiter = null;
+let nextTaskId = 1;
 
 init();
 
@@ -359,8 +360,19 @@ function taskCard(task) {
   const card = document.createElement("article");
   card.className = "task-card";
 
+  const header = document.createElement("div");
+  header.className = "task-card-header";
+
   const title = document.createElement("h3");
   title.textContent = task.name || "Untitled task";
+
+  const removeButton = document.createElement("button");
+  removeButton.className = "remove-task-button";
+  removeButton.type = "button";
+  removeButton.textContent = "Remove";
+  removeButton.addEventListener("click", () => removeTask(task.id));
+
+  header.append(title, removeButton);
 
   const description = document.createElement("p");
   description.textContent = task.description || "No description captured.";
@@ -386,8 +398,13 @@ function taskCard(task) {
   button.disabled = task.sent || !config.hasClickUp;
   button.addEventListener("click", () => sendTask(button, status, task));
 
-  card.append(title, description, controls, meta, status, button);
+  card.append(header, description, controls, meta, status, button);
   return card;
+}
+
+function removeTask(taskId) {
+  taskDrafts = taskDrafts.filter((task) => task.id !== taskId);
+  renderTasks();
 }
 
 function priorityControl(task) {
@@ -445,6 +462,7 @@ async function sendTask(button, status, task) {
 
 function normalizeClientTask(task) {
   return {
+    id: nextTaskId++,
     name: String(task.name || task.title || "").trim(),
     description: String(task.description || "").trim(),
     priority: normalizedPriority(task.priority) || null,
