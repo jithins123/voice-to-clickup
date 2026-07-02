@@ -166,7 +166,8 @@ async function createClickUpTask(res, body) {
 
 async function sendTaskToClickUp(task) {
   const token = assertEnv("CLICKUP_API_TOKEN");
-  const listId = normalizeClickUpListId(assertEnv("CLICKUP_LIST_ID"));
+  const rawListId = assertEnv("CLICKUP_LIST_ID");
+  const listId = normalizeClickUpListId(rawListId);
 
   if (!task.name) {
     throw httpError(400, "Task name is required before sending to ClickUp.");
@@ -219,7 +220,7 @@ async function sendTaskToClickUp(task) {
 
   const data = await readResponseBody(response);
   if (!response.ok) {
-    throw httpError(response.status, clickUpErrorMessage(response.status, data));
+    throw httpError(response.status, clickUpErrorMessage(response.status, data, rawListId, listId));
   }
 
   return { ok: true, task: data.json || {} };
@@ -241,20 +242,42 @@ async function readResponseBody(response) {
   return { json, text, message };
 }
 
-function clickUpErrorMessage(status, data) {
-  const hint = status === 401 || status === 403
-    ? " Check CLICKUP_API_TOKEN permissions in Vercel."
-    : status === 404
-      ? " Check that CLICKUP_LIST_ID is the numeric list ID for the target ClickUp list."
-      : "";
-  return `ClickUp ${status}: ${data.message || "Task creation failed"}.${hint}`;
+function clickUpErrorMessage(status, data, rawListId, normalizedListId) {
+  const base = `ClickUp ${status}: ${data.message || "Task creation failed"}.`;
+  if (status === 400 && String(data.message || "").toLowerCase().includes("list id")) {
+    return `${base} Vercel CLICKUP_LIST_ID is currently being sent as ${normalizedListId}. Open the exact target list in ClickUp and use the numeric ID after /li/ in the URL.`;
+  }
+  if (status === 401 || status === 403) {
+    return `${base} Check CLICKUP_API_TOKEN permissions in Vercel.`;
+  }
+  if (status === 404) {
+    return `${base} Check that CLICKUP_LIST_ID is the numeric ID for the target ClickUp list.`;
+  }
+  return base;
 }
 
 function normalizeClickUpListId(value) {
   const trimmed = String(value || "").trim();
-  const match = trimmed.match(/(?:list[\/-]|li=|list_id=)(\d+)/i) || trimmed.match(/^(\d+)$/);
-  if (!match) return trimmed;
-  return match[1];
+  const decoded = decodeURIComponent(trimmed);
+  const patterns = [
+    /(?:^|[/?#&])list_id=(\d+)/i,
+    /(?:^|[/?#&])li=(\d+)/i,
+    /(?:^|[/?#&])list=(\d+)/i,
+    /(?:^|[/?#&])li\/(\d+)(?:[/?#&]|$)/i,
+    /(?:^|[/?#&])list\/(\d+)(?:[/?#&]|$)/i,
+    /(?:^|[/?#&])list-(\d+)(?:[/?#&]|$)/i,
+    /^(\d+)$/
+  ];
+
+  for (const pattern of patterns) {
+    const match = decoded.match(pattern);
+    if (match) return match[1];
+  }
+
+  const longNumbers = decoded.match(/\d{6,}/g);
+  if (longNumbers?.length) return longNumbers.at(-1);
+
+  return decoded;
 }
 
 async function handleMcp(res, message) {
