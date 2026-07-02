@@ -91,7 +91,6 @@ async function createRealtimeToken(res) {
     body: JSON.stringify({
       session: {
         type: "transcription",
-        model: process.env.OPENAI_REALTIME_MODEL || "gpt-realtime-2",
         audio: {
           input: {
             transcription: {
