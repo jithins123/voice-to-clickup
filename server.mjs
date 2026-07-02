@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const publicDir = join(__dirname, "public");
+const oneDayMs = 24 * 60 * 60 * 1000;
 
 loadEnv();
 
@@ -114,6 +115,8 @@ async function createRealtimeToken(res) {
 
 async function extractTasks(res, body) {
   const apiKey = assertEnv("OPENAI_API_KEY");
+  const nowIso = new Date().toISOString();
+  const defaultStartIso = new Date(Date.now() + oneDayMs).toISOString();
 
   const transcript = String(body.transcript || "").trim();
   if (!transcript) return sendJson(res, { tasks: [] });
@@ -132,7 +135,9 @@ async function extractTasks(res, body) {
           content: [
             "Extract ClickUp-ready tasks from a spoken transcript.",
             "Return only JSON shaped as {\"tasks\": [...]} with no markdown.",
-            "Each task must include name, description, priority, due_date, assignee_hint, tags, and confidence.",
+            "Each task must include name, description, priority, start_date, due_date, assignee_hint, tags, and confidence.",
+            `Current server time is ${nowIso}. Resolve relative dates into ISO 8601 strings when possible.`,
+            `If no start date is implied, set start_date to null; the app will default it to ${defaultStartIso} when sending to ClickUp.`,
             "Use null when unknown. Keep task names short and action-oriented."
           ].join(" ")
         },
@@ -186,6 +191,9 @@ async function sendTaskToClickUp(task) {
 
   const priority = priorityValue(task.priority);
   if (priority) payload.priority = priority;
+
+  const startDate = dateToClickUpTimestamp(task.start_date) || defaultStartDateTimestamp();
+  payload.start_date = startDate;
 
   const dueDate = dateToClickUpTimestamp(task.due_date);
   if (dueDate) payload.due_date = dueDate;
@@ -295,6 +303,7 @@ async function handleMcp(res, message) {
                 name: { type: "string" },
                 description: { type: "string" },
                 priority: { type: "string" },
+                start_date: { type: "string" },
                 due_date: { type: "string" },
                 tags: { type: "array", items: { type: "string" } }
               }
@@ -344,6 +353,7 @@ function normalizeTask(task) {
     name: String(task.name || task.title || "").trim(),
     description: String(task.description || "").trim(),
     priority: task.priority || null,
+    start_date: task.start_date || null,
     due_date: task.due_date || null,
     assignee_hint: task.assignee_hint || null,
     tags: Array.isArray(task.tags) ? task.tags.filter(Boolean).map(String) : [],
@@ -361,8 +371,14 @@ function priorityValue(priority) {
 }
 
 function dateToClickUpTimestamp(value) {
+  if (value === null || value === undefined || value === "") return undefined;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
   const timestamp = Date.parse(value);
   return Number.isNaN(timestamp) ? undefined : timestamp;
+}
+
+function defaultStartDateTimestamp() {
+  return Date.now() + oneDayMs;
 }
 
 function responseText(data) {
