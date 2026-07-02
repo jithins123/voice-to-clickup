@@ -23,7 +23,6 @@ Add these in Vercel Project Settings > Environment Variables:
 - `CLICKUP_LIST_ID`
 - `CLICKUP_DEFAULT_ASSIGNEE_ID` optional
 - `OPENAI_TRANSCRIPTION_LANGUAGE` optional, defaults to `en`
-- `OPENAI_REALTIME_MODEL` optional, defaults to `gpt-realtime-2`
 - `OPENAI_TASK_MODEL` optional, defaults to `gpt-5.5`
 
 Never commit `.env` or real API keys to GitHub.
