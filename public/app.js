@@ -14,11 +14,14 @@ const els = {
 let config = {};
 let starting = false;
 let recording = false;
+let holdActive = false;
+let stopTimer = null;
 let pc = null;
 let dataChannel = null;
 let mediaStream = null;
 let recognition = null;
 let partialTranscript = "";
+let taskDrafts = [];
 
 init();
 
@@ -30,16 +33,38 @@ async function init() {
 }
 
 function bindEvents() {
-  els.recordButton.addEventListener("click", () => {
-    if (starting) return;
-    if (recording) stopRecording();
-    else startRecording();
+  els.recordButton.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    holdActive = true;
+    startRecording();
+  });
+
+  els.recordButton.addEventListener("pointerup", endHold);
+  els.recordButton.addEventListener("pointercancel", endHold);
+  els.recordButton.addEventListener("pointerleave", () => {
+    if (holdActive) endHold();
+  });
+
+  els.recordButton.addEventListener("keydown", (event) => {
+    if ((event.key === " " || event.key === "Enter") && !holdActive) {
+      event.preventDefault();
+      holdActive = true;
+      startRecording();
+    }
+  });
+
+  els.recordButton.addEventListener("keyup", (event) => {
+    if (event.key === " " || event.key === "Enter") {
+      event.preventDefault();
+      endHold();
+    }
   });
 
   els.clearButton.addEventListener("click", () => {
     els.transcript.value = "";
     partialTranscript = "";
-    renderTasks([]);
+    taskDrafts = [];
+    renderTasks();
     updateWordCount();
   });
 
@@ -47,22 +72,32 @@ function bindEvents() {
   els.transcript.addEventListener("input", updateWordCount);
 }
 
+function endHold() {
+  holdActive = false;
+  window.clearTimeout(stopTimer);
+  stopTimer = window.setTimeout(stopRecording, 700);
+}
+
 async function startRecording() {
+  window.clearTimeout(stopTimer);
   if (starting || recording) return;
 
   starting = true;
   els.recordButton.disabled = true;
-  setStatusText("Starting microphone", "Connecting to live transcription.");
+  setStatusText("Starting microphone", "Keep holding while the microphone connects.");
 
   try {
     if (config.hasOpenAI && window.RTCPeerConnection && navigator.mediaDevices?.getUserMedia) {
       await startRealtimeRecording();
-      setRecordingUi(true, "Listening live", "Transcript text will appear as you speak.");
-      return;
+      setRecordingUi(true, "Listening live", "Release the microphone when you are done speaking.");
+    } else {
+      startBrowserSpeechRecognition();
+      setRecordingUi(true, "Listening locally", "Release the microphone when you are done speaking.");
     }
 
-    startBrowserSpeechRecognition();
-    setRecordingUi(true, "Listening locally", "Using your browser speech recognition fallback.");
+    if (!holdActive) {
+      stopRecording();
+    }
   } catch (error) {
     cleanupRealtimeConnection();
     setRecordingUi(false, "Ready to listen", error.message || "Could not start recording.");
@@ -109,7 +144,7 @@ async function startRealtimeRecording() {
   }
 
   if (activePc.signalingState !== "have-local-offer") {
-    throw new Error(`WebRTC connection moved to ${activePc.signalingState}. Please tap record again.`);
+    throw new Error(`WebRTC connection moved to ${activePc.signalingState}. Please hold the microphone again.`);
   }
 
   await activePc.setRemoteDescription({ type: "answer", sdp: answerSdp });
@@ -143,7 +178,7 @@ function startBrowserSpeechRecognition() {
   };
 
   recognition.onend = () => {
-    if (recording) recognition.start();
+    if (recording && holdActive) recognition.start();
   };
 
   recognition.start();
@@ -151,13 +186,15 @@ function startBrowserSpeechRecognition() {
 }
 
 function stopRecording() {
+  if (!starting && !recording) return;
+
   starting = false;
   recording = false;
   cleanupRealtimeConnection();
   recognition?.stop();
   recognition = null;
   partialTranscript = "";
-  setRecordingUi(false, "Ready to listen", "Use the microphone button whenever you want to capture tasks.");
+  setRecordingUi(false, "Ready to listen", "Hold the microphone while speaking, then release to stop.");
   updateWordCount();
 }
 
@@ -215,6 +252,7 @@ async function extractTasks() {
 
   els.extractButton.disabled = true;
   els.extractButton.textContent = "Extracting";
+  setStatusText("Extracting task drafts", "Existing task cards will stay in place.");
 
   try {
     const result = await fetchJson("/api/tasks/extract", {
@@ -222,27 +260,52 @@ async function extractTasks() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ transcript })
     });
-    renderTasks(result.tasks || []);
+
+    const incoming = Array.isArray(result.tasks) ? result.tasks : [];
+    if (!incoming.length) {
+      setStatusText("No new tasks found", "Your existing task drafts were kept.");
+      return;
+    }
+
+    const beforeCount = taskDrafts.length;
+    taskDrafts = mergeTasks(taskDrafts, incoming);
+    renderTasks();
+    const addedCount = taskDrafts.length - beforeCount;
+    setStatusText("Task drafts updated", addedCount ? `Added ${addedCount} new draft${addedCount === 1 ? "" : "s"}.` : "No duplicate task cards were added.");
   } catch (error) {
-    els.tasks.className = "tasks-empty";
-    els.tasks.textContent = error.message || "Task extraction failed.";
+    setStatusText("Task extraction failed", error.message || "Your existing task drafts were kept.");
   } finally {
     els.extractButton.disabled = false;
     els.extractButton.textContent = "Extract Tasks";
   }
 }
 
-function renderTasks(tasks) {
-  els.taskCount.textContent = `${tasks.length} ${tasks.length === 1 ? "task" : "tasks"}`;
+function mergeTasks(existing, incoming) {
+  const seen = new Set(existing.map(taskKey));
+  const next = [...existing];
 
-  if (!tasks.length) {
+  for (const task of incoming) {
+    const normalized = normalizeClientTask(task);
+    const key = taskKey(normalized);
+    if (!normalized.name || seen.has(key)) continue;
+    seen.add(key);
+    next.push(normalized);
+  }
+
+  return next;
+}
+
+function renderTasks() {
+  els.taskCount.textContent = `${taskDrafts.length} ${taskDrafts.length === 1 ? "task" : "tasks"}`;
+
+  if (!taskDrafts.length) {
     els.tasks.className = "tasks-empty";
     els.tasks.textContent = "No task drafts yet.";
     return;
   }
 
   els.tasks.className = "";
-  els.tasks.replaceChildren(...tasks.map(taskCard));
+  els.tasks.replaceChildren(...taskDrafts.map(taskCard));
 }
 
 function taskCard(task) {
@@ -261,20 +324,25 @@ function taskCard(task) {
   addMeta(meta, task.due_date);
   for (const tag of task.tags || []) addMeta(meta, `#${tag}`);
 
-  const button = document.createElement("button");
-  button.className = "task-button";
-  button.type = "button";
-  button.textContent = config.hasClickUp ? "Send to ClickUp" : "Add ClickUp setup first";
-  button.disabled = !config.hasClickUp;
-  button.addEventListener("click", () => sendTask(button, task));
+  const status = document.createElement("p");
+  status.className = "task-status";
+  status.textContent = task.statusText || "";
 
-  card.append(title, description, meta, button);
+  const button = document.createElement("button");
+  button.className = `task-button ${task.sent ? "sent" : ""}`.trim();
+  button.type = "button";
+  button.textContent = task.sent ? "Sent" : config.hasClickUp ? "Send to ClickUp" : "Add ClickUp setup first";
+  button.disabled = task.sent || !config.hasClickUp;
+  button.addEventListener("click", () => sendTask(button, status, task));
+
+  card.append(title, description, meta, status, button);
   return card;
 }
 
-async function sendTask(button, task) {
+async function sendTask(button, status, task) {
   button.disabled = true;
   button.textContent = "Sending";
+  status.textContent = "Sending to ClickUp...";
 
   try {
     await fetchJson("/api/clickup/tasks", {
@@ -282,12 +350,33 @@ async function sendTask(button, task) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(task)
     });
-    button.classList.add("sent");
-    button.textContent = "Sent";
+    task.sent = true;
+    task.statusText = "Sent to ClickUp.";
+    renderTasks();
   } catch (error) {
+    task.statusText = error.message || "ClickUp send failed.";
+    status.textContent = task.statusText;
     button.disabled = false;
-    button.textContent = error.message || "Try again";
+    button.textContent = "Try Again";
   }
+}
+
+function normalizeClientTask(task) {
+  return {
+    name: String(task.name || task.title || "").trim(),
+    description: String(task.description || "").trim(),
+    priority: task.priority || null,
+    due_date: task.due_date || null,
+    assignee_hint: task.assignee_hint || null,
+    tags: Array.isArray(task.tags) ? task.tags.filter(Boolean).map(String) : [],
+    confidence: Number(task.confidence || 0),
+    sent: false,
+    statusText: ""
+  };
+}
+
+function taskKey(task) {
+  return `${String(task.name || "").toLowerCase()}|${String(task.due_date || "").toLowerCase()}`;
 }
 
 function addMeta(container, value, extraClass = "") {
