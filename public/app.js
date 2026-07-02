@@ -368,7 +368,8 @@ function taskCard(task) {
   const meta = document.createElement("div");
   meta.className = "meta-row";
   addMeta(meta, task.priority, `priority-${String(task.priority || "").toLowerCase()}`);
-  addMeta(meta, task.due_date);
+  addMeta(meta, task.start_date ? `Starts ${formatTaskDate(task.start_date)}` : "Starts +24h default");
+  addMeta(meta, task.due_date ? `Due ${formatTaskDate(task.due_date)}` : null);
   for (const tag of task.tags || []) addMeta(meta, `#${tag}`);
 
   const status = document.createElement("p");
@@ -413,6 +414,7 @@ function normalizeClientTask(task) {
     name: String(task.name || task.title || "").trim(),
     description: String(task.description || "").trim(),
     priority: task.priority || null,
+    start_date: task.start_date || null,
     due_date: task.due_date || null,
     assignee_hint: task.assignee_hint || null,
     tags: Array.isArray(task.tags) ? task.tags.filter(Boolean).map(String) : [],
@@ -423,7 +425,7 @@ function normalizeClientTask(task) {
 }
 
 function taskKey(task) {
-  return `${String(task.name || "").toLowerCase()}|${String(task.due_date || "").toLowerCase()}`;
+  return `${String(task.name || "").toLowerCase()}|${String(task.start_date || "").toLowerCase()}|${String(task.due_date || "").toLowerCase()}`;
 }
 
 function addMeta(container, value, extraClass = "") {
@@ -432,6 +434,12 @@ function addMeta(container, value, extraClass = "") {
   pill.className = `meta ${extraClass}`.trim();
   pill.textContent = value;
   container.append(pill);
+}
+
+function formatTaskDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
 }
 
 function appendTranscript(text) {
