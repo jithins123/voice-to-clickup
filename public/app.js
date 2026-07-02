@@ -335,9 +335,10 @@ async function extractTasks() {
   }
 }
 
-function addManualTask(event) {
+async function addManualTask(event) {
   event.preventDefault();
 
+  const submitButton = els.manualTaskForm.querySelector("button[type='submit']");
   const task = normalizeClientTask({
     name: els.manualTaskName.value,
     description: els.manualTaskDescription.value,
@@ -353,10 +354,39 @@ function addManualTask(event) {
     return;
   }
 
-  taskDrafts = [task, ...taskDrafts];
-  renderTasks();
-  els.manualTaskForm.reset();
-  setStatusText("Manual draft added", "Review it below, then send to ClickUp when ready.");
+  if (!config.hasClickUp) {
+    task.statusText = "Add ClickUp setup before creating this task.";
+    taskDrafts = [task, ...taskDrafts];
+    renderTasks();
+    setStatusText("ClickUp setup missing", "Kept the manual task below so you can send it later.");
+    return;
+  }
+
+  submitButton.disabled = true;
+  submitButton.textContent = "Creating";
+  setStatusText("Creating ClickUp task", "Sending the manual task now.");
+
+  try {
+    await fetchJson("/api/clickup/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(task)
+    });
+    task.sent = true;
+    task.statusText = "Sent to ClickUp.";
+    taskDrafts = [task, ...taskDrafts];
+    renderTasks();
+    els.manualTaskForm.reset();
+    setStatusText("Task created in ClickUp", "The manual task was sent successfully.");
+  } catch (error) {
+    task.statusText = error.message || "ClickUp send failed.";
+    taskDrafts = [task, ...taskDrafts];
+    renderTasks();
+    setStatusText("ClickUp create failed", "Kept the task below so you can retry without retyping it.");
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = "Create ClickUp Task";
+  }
 }
 
 function mergeTasks(existing, incoming) {
