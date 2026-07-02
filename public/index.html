@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Voice to ClickUp</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Voice to ClickUp</p>
+            <h1>Speak tasks into your workspace</h1>
+          </div>
+          <div class="status-pill" id="connectionStatus">Checking setup</div>
+        </header>
+
+        <section class="control-surface">
+          <div class="mic-panel">
+            <button class="record-button" id="recordButton" type="button" aria-label="Start recording">
+              <span class="record-dot"></span>
+            </button>
+            <div>
+              <h2 id="recordingTitle">Ready to listen</h2>
+              <p id="recordingHint">Use Chrome or Edge for the smoothest live microphone experience.</p>
+            </div>
+          </div>
+
+          <div class="action-row">
+            <button class="secondary-button" id="clearButton" type="button">Clear</button>
+            <button class="primary-button" id="extractButton" type="button">Extract Tasks</button>
+          </div>
+        </section>
+
+        <section class="grid">
+          <article class="panel transcript-panel">
+            <div class="panel-heading">
+              <h2>Transcript</h2>
+              <span id="transcriptCount">0 words</span>
+            </div>
+            <textarea id="transcript" placeholder="Your live transcript will appear here. You can also paste notes and extract tasks."></textarea>
+          </article>
+
+          <article class="panel tasks-panel">
+            <div class="panel-heading">
+              <h2>Task Drafts</h2>
+              <span id="taskCount">0 tasks</span>
+            </div>
+            <div id="tasks" class="tasks-empty">No task drafts yet.</div>
+          </article>
+        </section>
+      </section>
+    </main>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
