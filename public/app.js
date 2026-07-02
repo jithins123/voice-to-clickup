@@ -14,6 +14,7 @@ const els = {
 let config = {};
 let starting = false;
 let recording = false;
+let finalizing = false;
 let holdActive = false;
 let stopTimer = null;
 let pc = null;
@@ -22,6 +23,8 @@ let mediaStream = null;
 let recognition = null;
 let partialTranscript = "";
 let taskDrafts = [];
+let streamedTranscriptItems = new Set();
+let transcriptWaiter = null;
 
 init();
 
@@ -75,23 +78,26 @@ function bindEvents() {
 function endHold() {
   holdActive = false;
   window.clearTimeout(stopTimer);
-  stopTimer = window.setTimeout(stopRecording, 700);
+  stopTimer = window.setTimeout(() => {
+    stopRecording();
+  }, 350);
 }
 
 async function startRecording() {
   window.clearTimeout(stopTimer);
-  if (starting || recording) return;
+  if (starting || recording || finalizing) return;
 
   starting = true;
+  streamedTranscriptItems = new Set();
   setStatusText("Starting microphone", "Keep holding while the microphone connects.");
 
   try {
     if (config.hasOpenAI && window.RTCPeerConnection && navigator.mediaDevices?.getUserMedia) {
       await startRealtimeRecording();
-      setRecordingUi(true, "Listening live", "Release the microphone when you are done speaking.");
+      setRecordingUi(true, "Listening live", "Transcript text appears while you speak. Release to finish this note.");
     } else {
       startBrowserSpeechRecognition();
-      setRecordingUi(true, "Listening locally", "Release the microphone when you are done speaking.");
+      setRecordingUi(true, "Listening locally", "Transcript text appears while you speak. Release to finish this note.");
     }
 
     if (!holdActive) {
@@ -183,14 +189,33 @@ function startBrowserSpeechRecognition() {
   recording = true;
 }
 
-function stopRecording() {
-  if (!starting && !recording) return;
+async function stopRecording() {
+  if (!starting && !recording && !finalizing) return;
 
+  holdActive = false;
   starting = false;
-  recording = false;
+
+  if (recognition) {
+    recording = false;
+    recognition.stop();
+    recognition = null;
+    partialTranscript = "";
+    setRecordingUi(false, "Ready to listen", "Hold the microphone while speaking, then release to stop.");
+    updateWordCount();
+    return;
+  }
+
+  if (recording && dataChannel) {
+    finalizing = true;
+    recording = false;
+    mediaStream?.getTracks().forEach((track) => track.stop());
+    setRecordingUi(false, "Finishing transcript", "Waiting for the final words before closing the microphone session.");
+    sendRealtimeEvent({ type: "input_audio_buffer.commit" });
+    await waitForTranscriptCompletion(3500);
+  }
+
+  finalizing = false;
   cleanupRealtimeConnection();
-  recognition?.stop();
-  recognition = null;
   partialTranscript = "";
   setRecordingUi(false, "Ready to listen", "Hold the microphone while speaking, then release to stop.");
   updateWordCount();
@@ -203,6 +228,26 @@ function cleanupRealtimeConnection() {
   dataChannel = null;
   pc = null;
   mediaStream = null;
+}
+
+function sendRealtimeEvent(event) {
+  if (!dataChannel || dataChannel.readyState !== "open") return false;
+  dataChannel.send(JSON.stringify(event));
+  return true;
+}
+
+function waitForTranscriptCompletion(timeoutMs) {
+  return new Promise((resolve) => {
+    const timeout = window.setTimeout(done, timeoutMs);
+
+    function done() {
+      window.clearTimeout(timeout);
+      if (transcriptWaiter === done) transcriptWaiter = null;
+      resolve();
+    }
+
+    transcriptWaiter = done;
+  });
 }
 
 function waitForIceGatheringComplete(peerConnection) {
@@ -227,17 +272,21 @@ function waitForIceGatheringComplete(peerConnection) {
 
 function handleRealtimeEvent(event) {
   if (event.type === "conversation.item.input_audio_transcription.delta") {
-    partialTranscript += event.delta || "";
-    updateWordCount();
+    if (event.item_id) streamedTranscriptItems.add(event.item_id);
+    appendTranscript(event.delta || "");
   }
 
   if (event.type === "conversation.item.input_audio_transcription.completed") {
-    appendTranscript(`${event.transcript || partialTranscript} `);
+    if (!event.item_id || !streamedTranscriptItems.has(event.item_id)) {
+      appendTranscript(`${event.transcript || partialTranscript} `);
+    }
     partialTranscript = "";
+    transcriptWaiter?.();
   }
 
   if (event.type === "error") {
     els.recordingHint.textContent = event.error?.message || "Realtime transcription reported an error.";
+    transcriptWaiter?.();
   }
 }
 
@@ -386,7 +435,9 @@ function addMeta(container, value, extraClass = "") {
 }
 
 function appendTranscript(text) {
-  els.transcript.value = `${els.transcript.value}${text}`.replace(/\s+/g, " ").trimStart();
+  if (!text) return;
+  const needsSpace = els.transcript.value && !/\s$/.test(els.transcript.value) && !/^\s|^[,.;:!?]/.test(text);
+  els.transcript.value = `${els.transcript.value}${needsSpace ? " " : ""}${text}`;
   updateWordCount();
 }
 
