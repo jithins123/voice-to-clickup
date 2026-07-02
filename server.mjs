@@ -50,7 +50,7 @@ async function app(req, res) {
 
     sendJson(res, { error: "Method not allowed" }, 405);
   } catch (error) {
-    sendJson(res, { error: error.message || "Unexpected error" }, 500);
+    sendJson(res, { error: error.message || "Unexpected error" }, error.status || 500);
   }
 }
 
@@ -166,10 +166,14 @@ async function sendTaskToClickUp(task) {
 
   if (!task.name) throw new Error("Task name is required");
 
+  const descriptionParts = [];
+  if (task.description) descriptionParts.push(task.description);
+  if (task.assignee_hint) descriptionParts.push(`Assignee hint: ${task.assignee_hint}`);
+  if (task.tags.length) descriptionParts.push(`Tags: ${task.tags.map((tag) => `#${tag}`).join(" ")}`);
+
   const payload = {
     name: task.name,
-    description: task.description || "",
-    tags: Array.isArray(task.tags) ? task.tags : [],
+    description: descriptionParts.join("\n\n"),
     notify_all: false
   };
 
@@ -194,10 +198,22 @@ async function sendTaskToClickUp(task) {
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(data.err || data.error || "ClickUp task creation failed");
+    const error = new Error(clickUpErrorMessage(response.status, data));
+    error.status = response.status;
+    throw error;
   }
 
   return { ok: true, task: data };
+}
+
+function clickUpErrorMessage(status, data) {
+  const rawMessage = data.err || data.error || data.message || data.ECODE || "ClickUp task creation failed";
+  const hint = status === 401 || status === 403
+    ? " Check CLICKUP_API_TOKEN permissions in Vercel."
+    : status === 404
+      ? " Check that CLICKUP_LIST_ID is the numeric list ID for the target ClickUp list."
+      : "";
+  return `ClickUp ${status}: ${rawMessage}.${hint}`;
 }
 
 async function handleMcp(res, message) {
