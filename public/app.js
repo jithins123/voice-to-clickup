@@ -365,9 +365,12 @@ function taskCard(task) {
   const description = document.createElement("p");
   description.textContent = task.description || "No description captured.";
 
+  const controls = document.createElement("div");
+  controls.className = "task-controls";
+  controls.append(priorityControl(task));
+
   const meta = document.createElement("div");
   meta.className = "meta-row";
-  addMeta(meta, task.priority, `priority-${String(task.priority || "").toLowerCase()}`);
   addMeta(meta, task.start_date ? `Starts ${formatTaskDate(task.start_date)}` : "Starts +24h default");
   addMeta(meta, task.due_date ? `Due ${formatTaskDate(task.due_date)}` : null);
   for (const tag of task.tags || []) addMeta(meta, `#${tag}`);
@@ -383,8 +386,39 @@ function taskCard(task) {
   button.disabled = task.sent || !config.hasClickUp;
   button.addEventListener("click", () => sendTask(button, status, task));
 
-  card.append(title, description, meta, status, button);
+  card.append(title, description, controls, meta, status, button);
   return card;
+}
+
+function priorityControl(task) {
+  const label = document.createElement("label");
+  label.className = "task-control";
+
+  const text = document.createElement("span");
+  text.textContent = "Priority";
+
+  const select = document.createElement("select");
+  select.value = normalizedPriority(task.priority);
+
+  for (const option of [
+    ["", "None"],
+    ["urgent", "Urgent"],
+    ["high", "High"],
+    ["normal", "Normal"],
+    ["low", "Low"]
+  ]) {
+    const optionEl = document.createElement("option");
+    optionEl.value = option[0];
+    optionEl.textContent = option[1];
+    select.append(optionEl);
+  }
+
+  select.addEventListener("change", () => {
+    task.priority = select.value || null;
+  });
+
+  label.append(text, select);
+  return label;
 }
 
 async function sendTask(button, status, task) {
@@ -413,7 +447,7 @@ function normalizeClientTask(task) {
   return {
     name: String(task.name || task.title || "").trim(),
     description: String(task.description || "").trim(),
-    priority: task.priority || null,
+    priority: normalizedPriority(task.priority) || null,
     start_date: task.start_date || null,
     due_date: task.due_date || null,
     assignee_hint: task.assignee_hint || null,
@@ -422,6 +456,15 @@ function normalizeClientTask(task) {
     sent: false,
     statusText: ""
   };
+}
+
+function normalizedPriority(priority) {
+  const value = String(priority || "").toLowerCase();
+  if (value.includes("urgent")) return "urgent";
+  if (value.includes("high")) return "high";
+  if (value.includes("normal") || value.includes("medium")) return "normal";
+  if (value.includes("low")) return "low";
+  return "";
 }
 
 function taskKey(task) {
