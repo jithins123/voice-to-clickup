@@ -83,7 +83,6 @@ async function startRecording() {
   if (starting || recording) return;
 
   starting = true;
-  els.recordButton.disabled = true;
   setStatusText("Starting microphone", "Keep holding while the microphone connects.");
 
   try {
@@ -103,7 +102,6 @@ async function startRecording() {
     setRecordingUi(false, "Ready to listen", error.message || "Could not start recording.");
   } finally {
     starting = false;
-    els.recordButton.disabled = false;
   }
 }
 
