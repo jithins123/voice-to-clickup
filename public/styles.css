@@ -26,7 +26,8 @@ body {
 
 button,
 textarea,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -300,6 +301,41 @@ textarea {
   margin: 0 0 12px;
   color: var(--muted);
   line-height: 1.45;
+}
+
+.task-controls {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.task-control {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.task-control span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.task-control select {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  color: var(--ink);
+  padding: 0 10px;
+  outline: 0;
+}
+
+.task-control select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
 }
 
 .task-status {
