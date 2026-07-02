@@ -63,6 +63,39 @@
               <h2>Task Drafts</h2>
               <span id="taskCount">0 tasks</span>
             </div>
+
+            <form class="manual-task-form" id="manualTaskForm">
+              <div class="manual-task-grid">
+                <label>
+                  <span>Task name</span>
+                  <input id="manualTaskName" type="text" placeholder="Follow up with client" required />
+                </label>
+                <label>
+                  <span>Priority</span>
+                  <select id="manualTaskPriority">
+                    <option value="">None</option>
+                    <option value="urgent">Urgent</option>
+                    <option value="high">High</option>
+                    <option value="normal">Normal</option>
+                    <option value="low">Low</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Start</span>
+                  <input id="manualTaskStart" type="datetime-local" />
+                </label>
+                <label>
+                  <span>Due</span>
+                  <input id="manualTaskDue" type="datetime-local" />
+                </label>
+              </div>
+              <label class="manual-description">
+                <span>Description</span>
+                <textarea id="manualTaskDescription" rows="2" placeholder="Optional notes for the ClickUp task"></textarea>
+              </label>
+              <button class="secondary-button manual-add-button" type="submit">Add Manual Task</button>
+            </form>
+
             <div id="tasks" class="tasks-empty">No task drafts yet.</div>
           </article>
         </section>
