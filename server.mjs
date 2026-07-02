@@ -22,9 +22,9 @@ async function app(req, res) {
 
     if (req.method === "GET" && url.pathname === "/api/config") {
       return sendJson(res, {
-        hasOpenAI: Boolean(process.env.OPENAI_API_KEY),
-        hasClickUp: Boolean(process.env.CLICKUP_API_TOKEN && process.env.CLICKUP_LIST_ID),
-        defaultLanguage: process.env.OPENAI_TRANSCRIPTION_LANGUAGE || "en"
+        hasOpenAI: Boolean(envValue("OPENAI_API_KEY")),
+        hasClickUp: Boolean(envValue("CLICKUP_API_TOKEN") && envValue("CLICKUP_LIST_ID")),
+        defaultLanguage: envValue("OPENAI_TRANSCRIPTION_LANGUAGE") || "en"
       });
     }
 
@@ -79,12 +79,12 @@ function loadEnv() {
 }
 
 async function createRealtimeToken(res) {
-  assertEnv("OPENAI_API_KEY");
+  const apiKey = assertEnv("OPENAI_API_KEY");
 
   const response = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
       "OpenAI-Safety-Identifier": "voice-to-clickup-user"
     },
@@ -95,7 +95,7 @@ async function createRealtimeToken(res) {
           input: {
             transcription: {
               model: "gpt-realtime-whisper",
-              language: process.env.OPENAI_TRANSCRIPTION_LANGUAGE || "en",
+              language: envValue("OPENAI_TRANSCRIPTION_LANGUAGE") || "en",
               delay: "low"
             }
           }
@@ -104,16 +104,16 @@ async function createRealtimeToken(res) {
     })
   });
 
-  const data = await response.json().catch(() => ({}));
+  const data = await readResponseBody(response);
   if (!response.ok) {
-    return sendJson(res, { error: data.error?.message || "Could not create realtime token" }, response.status);
+    return sendJson(res, { error: data.message || "Could not create realtime token" }, response.status);
   }
 
-  sendJson(res, data);
+  sendJson(res, data.json || {});
 }
 
 async function extractTasks(res, body) {
-  assertEnv("OPENAI_API_KEY");
+  const apiKey = assertEnv("OPENAI_API_KEY");
 
   const transcript = String(body.transcript || "").trim();
   if (!transcript) return sendJson(res, { tasks: [] });
@@ -121,11 +121,11 @@ async function extractTasks(res, body) {
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      model: process.env.OPENAI_TASK_MODEL || "gpt-5.5",
+      model: envValue("OPENAI_TASK_MODEL") || "gpt-5.5",
       input: [
         {
           role: "system",
@@ -144,12 +144,12 @@ async function extractTasks(res, body) {
     })
   });
 
-  const data = await response.json().catch(() => ({}));
+  const data = await readResponseBody(response);
   if (!response.ok) {
-    return sendJson(res, { error: data.error?.message || "Could not extract tasks" }, response.status);
+    return sendJson(res, { error: data.message || "Could not extract tasks" }, response.status);
   }
 
-  const text = responseText(data);
+  const text = responseText(data.json || {});
   const parsed = parseJsonObject(text);
   const tasks = Array.isArray(parsed.tasks) ? parsed.tasks.map(normalizeTask) : [];
   sendJson(res, { tasks });
@@ -161,8 +161,8 @@ async function createClickUpTask(res, body) {
 }
 
 async function sendTaskToClickUp(task) {
-  assertEnv("CLICKUP_API_TOKEN");
-  assertEnv("CLICKUP_LIST_ID");
+  const token = assertEnv("CLICKUP_API_TOKEN");
+  const listId = assertEnv("CLICKUP_LIST_ID");
 
   if (!task.name) throw new Error("Task name is required");
 
@@ -183,37 +183,53 @@ async function sendTaskToClickUp(task) {
   const dueDate = dateToClickUpTimestamp(task.due_date);
   if (dueDate) payload.due_date = dueDate;
 
-  if (process.env.CLICKUP_DEFAULT_ASSIGNEE_ID) {
-    payload.assignees = [Number(process.env.CLICKUP_DEFAULT_ASSIGNEE_ID)];
+  const defaultAssignee = Number(envValue("CLICKUP_DEFAULT_ASSIGNEE_ID"));
+  if (Number.isFinite(defaultAssignee) && defaultAssignee > 0) {
+    payload.assignees = [defaultAssignee];
   }
 
-  const response = await fetch(`https://api.clickup.com/api/v2/list/${process.env.CLICKUP_LIST_ID}/task`, {
+  const response = await fetch(`https://api.clickup.com/api/v2/list/${encodeURIComponent(listId)}/task`, {
     method: "POST",
     headers: {
-      Authorization: process.env.CLICKUP_API_TOKEN,
+      Authorization: token,
       "Content-Type": "application/json"
     },
     body: JSON.stringify(payload)
   });
 
-  const data = await response.json().catch(() => ({}));
+  const data = await readResponseBody(response);
   if (!response.ok) {
     const error = new Error(clickUpErrorMessage(response.status, data));
     error.status = response.status;
     throw error;
   }
 
-  return { ok: true, task: data };
+  return { ok: true, task: data.json || {} };
+}
+
+async function readResponseBody(response) {
+  const text = await response.text().catch(() => "");
+  let json = null;
+
+  if (text) {
+    try {
+      json = JSON.parse(text);
+    } catch {
+      json = null;
+    }
+  }
+
+  const message = json?.error?.message || json?.err || json?.error || json?.message || json?.ECODE || text || response.statusText;
+  return { json, text, message };
 }
 
 function clickUpErrorMessage(status, data) {
-  const rawMessage = data.err || data.error || data.message || data.ECODE || "ClickUp task creation failed";
   const hint = status === 401 || status === 403
     ? " Check CLICKUP_API_TOKEN permissions in Vercel."
     : status === 404
       ? " Check that CLICKUP_LIST_ID is the numeric list ID for the target ClickUp list."
       : "";
-  return `ClickUp ${status}: ${rawMessage}.${hint}`;
+  return `ClickUp ${status}: ${data.message || "Task creation failed"}.${hint}`;
 }
 
 async function handleMcp(res, message) {
@@ -328,10 +344,16 @@ function parseJsonObject(text) {
   }
 }
 
+function envValue(name) {
+  return String(process.env[name] || "").trim();
+}
+
 function assertEnv(name) {
-  if (!process.env[name]) {
+  const value = envValue(name);
+  if (!value) {
     throw new Error(`${name} is missing. Add it to your environment variables.`);
   }
+  return value;
 }
 
 async function readJson(req) {
