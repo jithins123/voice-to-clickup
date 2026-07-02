@@ -356,7 +356,7 @@ function addManualTask(event) {
   taskDrafts = [task, ...taskDrafts];
   renderTasks();
   els.manualTaskForm.reset();
-  setStatusText("Manual task added", "You can send it to ClickUp without using AI extraction.");
+  setStatusText("Manual draft added", "Review it below, then send to ClickUp when ready.");
 }
 
 function mergeTasks(existing, incoming) {
@@ -414,6 +414,7 @@ function taskCard(task) {
 
   const meta = document.createElement("div");
   meta.className = "meta-row";
+  addMeta(meta, task.priority ? `Priority ${priorityLabel(task.priority)}` : null, task.priority ? `priority-${task.priority}` : "");
   addMeta(meta, task.start_date ? `Starts ${formatTaskDate(task.start_date)}` : "Starts +24h default");
   addMeta(meta, task.due_date ? `Due ${formatTaskDate(task.due_date)}` : null);
   for (const tag of task.tags || []) addMeta(meta, `#${tag}`);
@@ -446,7 +447,6 @@ function priorityControl(task) {
   text.textContent = "Priority";
 
   const select = document.createElement("select");
-  select.value = normalizedPriority(task.priority);
 
   for (const option of [
     ["", "None"],
@@ -461,8 +461,11 @@ function priorityControl(task) {
     select.append(optionEl);
   }
 
+  select.value = normalizedPriority(task.priority);
+
   select.addEventListener("change", () => {
-    task.priority = select.value || null;
+    task.priority = normalizedPriority(select.value) || null;
+    renderTasks();
   });
 
   label.append(text, select);
@@ -514,6 +517,11 @@ function normalizedPriority(priority) {
   if (value.includes("normal") || value.includes("medium")) return "normal";
   if (value.includes("low")) return "low";
   return "";
+}
+
+function priorityLabel(priority) {
+  const value = normalizedPriority(priority);
+  return value ? value.charAt(0).toUpperCase() + value.slice(1) : "None";
 }
 
 function taskKey(task) {
