@@ -48,9 +48,9 @@ async function app(req, res) {
       return serveStatic(res, url.pathname);
     }
 
-    sendJson(res, { error: "Method not allowed" }, 405);
+    return sendJson(res, { error: "Method not allowed" }, 405);
   } catch (error) {
-    sendJson(res, { error: error.message || "Unexpected error" }, error.status || 500);
+    return sendJson(res, { error: errorMessage(error) }, statusCode(error));
   }
 }
 
@@ -109,7 +109,7 @@ async function createRealtimeToken(res) {
     return sendJson(res, { error: data.message || "Could not create realtime token" }, response.status);
   }
 
-  sendJson(res, data.json || {});
+  return sendJson(res, data.json || {});
 }
 
 async function extractTasks(res, body) {
@@ -152,24 +152,30 @@ async function extractTasks(res, body) {
   const text = responseText(data.json || {});
   const parsed = parseJsonObject(text);
   const tasks = Array.isArray(parsed.tasks) ? parsed.tasks.map(normalizeTask) : [];
-  sendJson(res, { tasks });
+  return sendJson(res, { tasks });
 }
 
 async function createClickUpTask(res, body) {
-  const created = await sendTaskToClickUp(normalizeTask(body));
-  sendJson(res, created);
+  try {
+    const result = await sendTaskToClickUp(normalizeTask(body));
+    return sendJson(res, result);
+  } catch (error) {
+    return sendJson(res, { error: errorMessage(error) }, statusCode(error));
+  }
 }
 
 async function sendTaskToClickUp(task) {
   const token = assertEnv("CLICKUP_API_TOKEN");
-  const listId = assertEnv("CLICKUP_LIST_ID");
+  const listId = normalizeClickUpListId(assertEnv("CLICKUP_LIST_ID"));
 
-  if (!task.name) throw new Error("Task name is required");
+  if (!task.name) {
+    throw httpError(400, "Task name is required before sending to ClickUp.");
+  }
 
   const descriptionParts = [];
   if (task.description) descriptionParts.push(task.description);
   if (task.assignee_hint) descriptionParts.push(`Assignee hint: ${task.assignee_hint}`);
-  if (task.tags.length) descriptionParts.push(`Tags: ${task.tags.map((tag) => `#${tag}`).join(" ")}`);
+  if (task.tags.length) descriptionParts.push(`Tags: ${task.tags.map((tag) => "#" + tag).join(" ")}`);
 
   const payload = {
     name: task.name,
@@ -188,20 +194,32 @@ async function sendTaskToClickUp(task) {
     payload.assignees = [defaultAssignee];
   }
 
-  const response = await fetch(`https://api.clickup.com/api/v2/list/${encodeURIComponent(listId)}/task`, {
-    method: "POST",
-    headers: {
-      Authorization: token,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(payload)
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+
+  let response;
+  try {
+    response = await fetch(`https://api.clickup.com/api/v2/list/${encodeURIComponent(listId)}/task`, {
+      method: "POST",
+      headers: {
+        Authorization: token,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+  } catch (error) {
+    const message = error?.name === "AbortError"
+      ? "ClickUp request timed out. Check the list ID and try again."
+      : `Could not reach ClickUp: ${errorMessage(error)}`;
+    throw httpError(502, message);
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const data = await readResponseBody(response);
   if (!response.ok) {
-    const error = new Error(clickUpErrorMessage(response.status, data));
-    error.status = response.status;
-    throw error;
+    throw httpError(response.status, clickUpErrorMessage(response.status, data));
   }
 
   return { ok: true, task: data.json || {} };
@@ -230,6 +248,13 @@ function clickUpErrorMessage(status, data) {
       ? " Check that CLICKUP_LIST_ID is the numeric list ID for the target ClickUp list."
       : "";
   return `ClickUp ${status}: ${data.message || "Task creation failed"}.${hint}`;
+}
+
+function normalizeClickUpListId(value) {
+  const trimmed = String(value || "").trim();
+  const match = trimmed.match(/(?:list[\/-]|li=|list_id=)(\d+)/i) || trimmed.match(/^(\d+)$/);
+  if (!match) return trimmed;
+  return match[1];
 }
 
 async function handleMcp(res, message) {
@@ -270,7 +295,7 @@ async function handleMcp(res, message) {
     });
   }
 
-  sendJson(res, {
+  return sendJson(res, {
     jsonrpc: "2.0",
     id: message.id || null,
     error: { code: -32601, message: "Method not found" }
@@ -289,7 +314,7 @@ async function serveStatic(res, pathname) {
     res.writeHead(200, { "Content-Type": mimeTypes[extname(filePath)] || "application/octet-stream" });
     res.end(file);
   } catch {
-    sendJson(res, { error: "Not found" }, 404);
+    return sendJson(res, { error: "Not found" }, 404);
   }
 }
 
@@ -351,15 +376,34 @@ function envValue(name) {
 function assertEnv(name) {
   const value = envValue(name);
   if (!value) {
-    throw new Error(`${name} is missing. Add it to your environment variables.`);
+    throw httpError(500, `${name} is missing. Add it to your Vercel environment variables.`);
   }
   return value;
+}
+
+function httpError(status, message) {
+  const error = new Error(message);
+  error.status = status;
+  return error;
+}
+
+function statusCode(error) {
+  const status = Number(error?.status);
+  return Number.isInteger(status) && status >= 400 && status <= 599 ? status : 500;
+}
+
+function errorMessage(error) {
+  return String(error?.message || error || "Unexpected server error").slice(0, 800);
 }
 
 async function readJson(req) {
   const text = await readText(req);
   if (!text.trim()) return {};
-  return JSON.parse(text);
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw httpError(400, "Request body was not valid JSON.");
+  }
 }
 
 function readText(req) {
@@ -369,7 +413,7 @@ function readText(req) {
       data += chunk;
       if (data.length > 1_000_000) {
         req.destroy();
-        reject(new Error("Request body too large"));
+        reject(httpError(413, "Request body too large."));
       }
     });
     req.on("end", () => resolveRead(data));
