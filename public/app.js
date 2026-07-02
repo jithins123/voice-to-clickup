@@ -12,6 +12,7 @@ const els = {
 };
 
 let config = {};
+let starting = false;
 let recording = false;
 let pc = null;
 let dataChannel = null;
@@ -30,6 +31,7 @@ async function init() {
 
 function bindEvents() {
   els.recordButton.addEventListener("click", () => {
+    if (starting) return;
     if (recording) stopRecording();
     else startRecording();
   });
@@ -46,7 +48,11 @@ function bindEvents() {
 }
 
 async function startRecording() {
-  setRecordingUi(true, "Starting microphone", "Connecting to live transcription.");
+  if (starting || recording) return;
+
+  starting = true;
+  els.recordButton.disabled = true;
+  setStatusText("Starting microphone", "Connecting to live transcription.");
 
   try {
     if (config.hasOpenAI && window.RTCPeerConnection && navigator.mediaDevices?.getUserMedia) {
@@ -58,7 +64,11 @@ async function startRecording() {
     startBrowserSpeechRecognition();
     setRecordingUi(true, "Listening locally", "Using your browser speech recognition fallback.");
   } catch (error) {
+    cleanupRealtimeConnection();
     setRecordingUi(false, "Ready to listen", error.message || "Could not start recording.");
+  } finally {
+    starting = false;
+    els.recordButton.disabled = false;
   }
 }
 
@@ -67,15 +77,18 @@ async function startRealtimeRecording() {
   const ephemeralKey = tokenData.value || tokenData.client_secret?.value;
   if (!ephemeralKey) throw new Error("Realtime token response did not include a usable key.");
 
-  pc = new RTCPeerConnection();
-  dataChannel = pc.createDataChannel("oai-events");
+  const activePc = new RTCPeerConnection();
+  pc = activePc;
+
+  dataChannel = activePc.createDataChannel("oai-events");
   dataChannel.addEventListener("message", (event) => handleRealtimeEvent(JSON.parse(event.data)));
 
   mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  pc.addTrack(mediaStream.getAudioTracks()[0]);
+  activePc.addTrack(mediaStream.getAudioTracks()[0]);
 
-  const offer = await pc.createOffer();
-  await pc.setLocalDescription(offer);
+  const offer = await activePc.createOffer();
+  await activePc.setLocalDescription(offer);
+  await waitForIceGatheringComplete(activePc);
 
   const response = await fetch("https://api.openai.com/v1/realtime/calls", {
     method: "POST",
@@ -83,14 +96,23 @@ async function startRealtimeRecording() {
       Authorization: `Bearer ${ephemeralKey}`,
       "Content-Type": "application/sdp"
     },
-    body: offer.sdp
+    body: activePc.localDescription?.sdp || offer.sdp
   });
 
+  const answerSdp = await response.text();
   if (!response.ok) {
-    throw new Error(await response.text());
+    throw new Error(answerSdp);
   }
 
-  await pc.setRemoteDescription({ type: "answer", sdp: await response.text() });
+  if (activePc !== pc) {
+    throw new Error("Recording startup was cancelled. Please try again.");
+  }
+
+  if (activePc.signalingState !== "have-local-offer") {
+    throw new Error(`WebRTC connection moved to ${activePc.signalingState}. Please tap record again.`);
+  }
+
+  await activePc.setRemoteDescription({ type: "answer", sdp: answerSdp });
   recording = true;
 }
 
@@ -129,18 +151,43 @@ function startBrowserSpeechRecognition() {
 }
 
 function stopRecording() {
+  starting = false;
   recording = false;
-  dataChannel?.close();
-  pc?.close();
-  mediaStream?.getTracks().forEach((track) => track.stop());
+  cleanupRealtimeConnection();
   recognition?.stop();
-  dataChannel = null;
-  pc = null;
-  mediaStream = null;
   recognition = null;
   partialTranscript = "";
   setRecordingUi(false, "Ready to listen", "Use the microphone button whenever you want to capture tasks.");
   updateWordCount();
+}
+
+function cleanupRealtimeConnection() {
+  dataChannel?.close();
+  pc?.close();
+  mediaStream?.getTracks().forEach((track) => track.stop());
+  dataChannel = null;
+  pc = null;
+  mediaStream = null;
+}
+
+function waitForIceGatheringComplete(peerConnection) {
+  if (peerConnection.iceGatheringState === "complete") return Promise.resolve();
+
+  return new Promise((resolve) => {
+    const timeout = window.setTimeout(done, 2500);
+
+    function done() {
+      window.clearTimeout(timeout);
+      peerConnection.removeEventListener("icegatheringstatechange", onStateChange);
+      resolve();
+    }
+
+    function onStateChange() {
+      if (peerConnection.iceGatheringState === "complete") done();
+    }
+
+    peerConnection.addEventListener("icegatheringstatechange", onStateChange);
+  });
 }
 
 function handleRealtimeEvent(event) {
@@ -265,11 +312,15 @@ function updateWordCount() {
   els.transcriptCount.textContent = `${words} ${words === 1 ? "word" : "words"}`;
 }
 
+function setStatusText(title, hint) {
+  els.recordingTitle.textContent = title;
+  els.recordingHint.textContent = hint;
+}
+
 function setRecordingUi(isRecording, title, hint) {
   recording = isRecording;
   els.recordButton.classList.toggle("recording", isRecording);
-  els.recordingTitle.textContent = title;
-  els.recordingHint.textContent = hint;
+  setStatusText(title, hint);
 }
 
 function setSetupStatus() {
