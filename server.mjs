@@ -245,13 +245,13 @@ async function readResponseBody(response) {
 function clickUpErrorMessage(status, data, rawListId, normalizedListId) {
   const base = `ClickUp ${status}: ${data.message || "Task creation failed"}.`;
   if (status === 400 && String(data.message || "").toLowerCase().includes("list id")) {
-    return `${base} Vercel CLICKUP_LIST_ID is currently being sent as ${normalizedListId}. Open the exact target list in ClickUp and use the numeric ID after /li/ in the URL.`;
+    return `${base} Vercel CLICKUP_LIST_ID is currently being sent as ${normalizedListId}. For URLs like /v/l/8c9z29a-302, set CLICKUP_LIST_ID to 8c9z29a-302.`;
   }
   if (status === 401 || status === 403) {
     return `${base} Check CLICKUP_API_TOKEN permissions in Vercel.`;
   }
   if (status === 404) {
-    return `${base} Check that CLICKUP_LIST_ID is the numeric ID for the target ClickUp list.`;
+    return `${base} Check that CLICKUP_LIST_ID matches the target ClickUp list, such as 8c9z29a-302 from /v/l/8c9z29a-302.`;
   }
   return base;
 }
@@ -259,23 +259,21 @@ function clickUpErrorMessage(status, data, rawListId, normalizedListId) {
 function normalizeClickUpListId(value) {
   const trimmed = String(value || "").trim();
   const decoded = decodeURIComponent(trimmed);
+  const listSlug = "([A-Za-z0-9_-]+)";
   const patterns = [
-    /(?:^|[/?#&])list_id=(\d+)/i,
-    /(?:^|[/?#&])li=(\d+)/i,
-    /(?:^|[/?#&])list=(\d+)/i,
-    /(?:^|[/?#&])li\/(\d+)(?:[/?#&]|$)/i,
-    /(?:^|[/?#&])list\/(\d+)(?:[/?#&]|$)/i,
-    /(?:^|[/?#&])list-(\d+)(?:[/?#&]|$)/i,
-    /^(\d+)$/
+    new RegExp(`(?:^|[/?#&])l/${listSlug}(?:[/?#&]|$)`, "i"),
+    new RegExp(`(?:^|[/?#&])li/${listSlug}(?:[/?#&]|$)`, "i"),
+    new RegExp(`(?:^|[/?#&])list/${listSlug}(?:[/?#&]|$)`, "i"),
+    /(?:^|[/?#&])list_id=([A-Za-z0-9_-]+)/i,
+    /(?:^|[/?#&])li=([A-Za-z0-9_-]+)/i,
+    /(?:^|[/?#&])list=([A-Za-z0-9_-]+)/i,
+    /^([A-Za-z0-9_-]+)$/
   ];
 
   for (const pattern of patterns) {
     const match = decoded.match(pattern);
     if (match) return match[1];
   }
-
-  const longNumbers = decoded.match(/\d{6,}/g);
-  if (longNumbers?.length) return longNumbers.at(-1);
 
   return decoded;
 }
