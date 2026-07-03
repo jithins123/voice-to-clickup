@@ -14,91 +14,144 @@
             <p class="eyebrow">Voice to ClickUp</p>
             <h1>Speak tasks into your workspace</h1>
           </div>
-          <div class="status-pill" id="connectionStatus">Checking setup</div>
+          <div class="topbar-actions">
+            <div class="status-pill" id="connectionStatus">Checking setup</div>
+            <button class="secondary-button account-button hidden" id="settingsButton" type="button">Settings</button>
+            <button class="secondary-button account-button hidden" id="logoutButton" type="button">Sign Out</button>
+          </div>
         </header>
 
-        <section class="guide-strip" aria-label="How to use Voice to ClickUp">
+        <section class="auth-panel panel hidden" id="authPanel">
           <div>
-            <strong>1. Hold to speak</strong>
-            <span>Press and hold the microphone only while dictating.</span>
+            <p class="eyebrow">Secure workspace</p>
+            <h2>Sign in to continue</h2>
+            <p>Each user stores their own OpenAI and ClickUp keys securely for their account.</p>
           </div>
-          <div>
-            <strong>2. Extract drafts</strong>
-            <span>Review the task cards before sending anything.</span>
-          </div>
-          <div>
-            <strong>3. Send to ClickUp</strong>
-            <span>Each card is sent only when you choose it.</span>
-          </div>
+
+          <form class="auth-form" id="authForm">
+            <label>
+              <span>Email</span>
+              <input id="authEmail" type="email" autocomplete="email" required />
+            </label>
+            <label>
+              <span>Password</span>
+              <input id="authPassword" type="password" autocomplete="current-password" minlength="8" required />
+            </label>
+            <div class="auth-actions">
+              <button class="primary-button" id="loginButton" type="submit">Sign In</button>
+              <button class="secondary-button" id="signupButton" type="button">Create Account</button>
+            </div>
+            <p class="form-status" id="authStatus"></p>
+          </form>
         </section>
 
-        <section class="control-surface">
-          <div class="mic-panel">
-            <button class="record-button" id="recordButton" type="button" aria-label="Hold to record">
-              <span class="record-dot"></span>
-            </button>
+        <section class="settings-panel panel hidden" id="settingsPanel">
+          <div class="panel-heading">
+            <h2>API Settings</h2>
+            <button class="secondary-button account-button" id="closeSettingsButton" type="button">Close</button>
+          </div>
+          <form class="settings-form" id="settingsForm">
+            <label>
+              <span>OpenAI API key</span>
+              <input id="settingsOpenAI" type="password" autocomplete="off" placeholder="Leave blank to keep saved key" />
+            </label>
+            <label>
+              <span>ClickUp API token</span>
+              <input id="settingsClickUpToken" type="password" autocomplete="off" placeholder="Leave blank to keep saved token" />
+            </label>
+            <label>
+              <span>ClickUp List ID</span>
+              <input id="settingsClickUpList" type="text" autocomplete="off" placeholder="Example: 8c9z29a-302" />
+            </label>
+            <button class="primary-button" type="submit">Save Securely</button>
+            <p class="form-status" id="settingsStatus"></p>
+          </form>
+        </section>
+
+        <div id="appContent" class="hidden">
+          <section class="guide-strip" aria-label="How to use Voice to ClickUp">
             <div>
-              <h2 id="recordingTitle">Ready to listen</h2>
-              <p id="recordingHint">Hold the microphone while speaking, then release to stop.</p>
+              <strong>1. Hold to speak</strong>
+              <span>Press and hold the microphone only while dictating.</span>
             </div>
-          </div>
-
-          <div class="action-row">
-            <button class="secondary-button" id="clearButton" type="button">Clear</button>
-            <button class="primary-button" id="extractButton" type="button">Extract Tasks</button>
-          </div>
-        </section>
-
-        <section class="grid">
-          <article class="panel transcript-panel">
-            <div class="panel-heading">
-              <h2>Transcript</h2>
-              <span id="transcriptCount">0 words</span>
+            <div>
+              <strong>2. Extract drafts</strong>
+              <span>Review the task cards before sending anything.</span>
             </div>
-            <textarea id="transcript" placeholder="Your live transcript will appear here. You can also paste notes and extract tasks."></textarea>
-          </article>
-
-          <article class="panel tasks-panel">
-            <div class="panel-heading">
-              <h2>Task Drafts</h2>
-              <span id="taskCount">0 tasks</span>
+            <div>
+              <strong>3. Send to ClickUp</strong>
+              <span>Each card is sent only when you choose it.</span>
             </div>
+          </section>
 
-            <form class="manual-task-form" id="manualTaskForm">
-              <div class="manual-task-grid">
-                <label>
-                  <span>Task name</span>
-                  <input id="manualTaskName" type="text" placeholder="Follow up with client" required />
-                </label>
-                <label>
-                  <span>Priority</span>
-                  <select id="manualTaskPriority">
-                    <option value="">None</option>
-                    <option value="urgent">Urgent</option>
-                    <option value="high">High</option>
-                    <option value="normal">Normal</option>
-                    <option value="low">Low</option>
-                  </select>
-                </label>
-                <label>
-                  <span>Start</span>
-                  <input id="manualTaskStart" type="datetime-local" />
-                </label>
-                <label>
-                  <span>Due</span>
-                  <input id="manualTaskDue" type="datetime-local" />
-                </label>
+          <section class="control-surface">
+            <div class="mic-panel">
+              <button class="record-button" id="recordButton" type="button" aria-label="Hold to record">
+                <span class="record-dot"></span>
+              </button>
+              <div>
+                <h2 id="recordingTitle">Ready to listen</h2>
+                <p id="recordingHint">Hold the microphone while speaking, then release to stop.</p>
               </div>
-              <label class="manual-description">
-                <span>Description</span>
-                <textarea id="manualTaskDescription" rows="2" placeholder="Optional notes for the ClickUp task"></textarea>
-              </label>
-              <button class="secondary-button manual-add-button" type="submit">Create ClickUp Task</button>
-            </form>
+            </div>
 
-            <div id="tasks" class="tasks-empty">No task drafts yet.</div>
-          </article>
-        </section>
+            <div class="action-row">
+              <button class="secondary-button" id="clearButton" type="button">Clear</button>
+              <button class="primary-button" id="extractButton" type="button">Extract Tasks</button>
+            </div>
+          </section>
+
+          <section class="grid">
+            <article class="panel transcript-panel">
+              <div class="panel-heading">
+                <h2>Transcript</h2>
+                <span id="transcriptCount">0 words</span>
+              </div>
+              <textarea id="transcript" placeholder="Your live transcript will appear here. You can also paste notes and extract tasks."></textarea>
+            </article>
+
+            <article class="panel tasks-panel">
+              <div class="panel-heading">
+                <h2>Task Drafts</h2>
+                <span id="taskCount">0 tasks</span>
+              </div>
+
+              <form class="manual-task-form" id="manualTaskForm">
+                <div class="manual-task-grid">
+                  <label>
+                    <span>Task name</span>
+                    <input id="manualTaskName" type="text" placeholder="Follow up with client" required />
+                  </label>
+                  <label>
+                    <span>Priority</span>
+                    <select id="manualTaskPriority">
+                      <option value="">None</option>
+                      <option value="urgent">Urgent</option>
+                      <option value="high">High</option>
+                      <option value="normal">Normal</option>
+                      <option value="low">Low</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Start</span>
+                    <input id="manualTaskStart" type="datetime-local" />
+                  </label>
+                  <label>
+                    <span>Due</span>
+                    <input id="manualTaskDue" type="datetime-local" />
+                  </label>
+                </div>
+                <label class="manual-description">
+                  <span>Description</span>
+                  <textarea id="manualTaskDescription" rows="2" placeholder="Optional notes for the ClickUp task"></textarea>
+                </label>
+                <button class="secondary-button manual-add-button" type="submit">Create ClickUp Task</button>
+              </form>
+
+              <div id="tasks" class="tasks-empty">No task drafts yet.</div>
+            </article>
+          </section>
+        </div>
       </section>
     </main>
 
