@@ -1,5 +1,22 @@
 const els = {
   status: document.querySelector("#connectionStatus"),
+  settingsButton: document.querySelector("#settingsButton"),
+  logoutButton: document.querySelector("#logoutButton"),
+  authPanel: document.querySelector("#authPanel"),
+  authForm: document.querySelector("#authForm"),
+  authEmail: document.querySelector("#authEmail"),
+  authPassword: document.querySelector("#authPassword"),
+  authStatus: document.querySelector("#authStatus"),
+  loginButton: document.querySelector("#loginButton"),
+  signupButton: document.querySelector("#signupButton"),
+  settingsPanel: document.querySelector("#settingsPanel"),
+  settingsForm: document.querySelector("#settingsForm"),
+  settingsOpenAI: document.querySelector("#settingsOpenAI"),
+  settingsClickUpToken: document.querySelector("#settingsClickUpToken"),
+  settingsClickUpList: document.querySelector("#settingsClickUpList"),
+  settingsStatus: document.querySelector("#settingsStatus"),
+  closeSettingsButton: document.querySelector("#closeSettingsButton"),
+  appContent: document.querySelector("#appContent"),
   recordButton: document.querySelector("#recordButton"),
   recordingTitle: document.querySelector("#recordingTitle"),
   recordingHint: document.querySelector("#recordingHint"),
@@ -36,13 +53,19 @@ let nextTaskId = 1;
 init();
 
 async function init() {
-  config = await fetchJson("/api/config").catch(() => ({}));
-  setSetupStatus();
   bindEvents();
+  await refreshSession();
   updateWordCount();
 }
 
 function bindEvents() {
+  els.authForm.addEventListener("submit", login);
+  els.signupButton.addEventListener("click", signUp);
+  els.logoutButton.addEventListener("click", logout);
+  els.settingsButton.addEventListener("click", () => showSettings(true));
+  els.closeSettingsButton.addEventListener("click", () => showSettings(false));
+  els.settingsForm.addEventListener("submit", saveSettings);
+
   els.recordButton.addEventListener("pointerdown", (event) => {
     event.preventDefault();
     holdActive = true;
@@ -83,6 +106,127 @@ function bindEvents() {
   els.manualTaskForm.addEventListener("submit", addManualTask);
 }
 
+async function refreshSession() {
+  config = await fetchJson("/api/session").catch(() => ({ authEnabled: false }));
+  renderShell();
+  setSetupStatus();
+}
+
+function renderShell() {
+  const shouldLogin = config.authEnabled && !config.authenticated;
+  els.authPanel.classList.toggle("hidden", !shouldLogin);
+  els.appContent.classList.toggle("hidden", shouldLogin);
+  els.settingsButton.classList.toggle("hidden", shouldLogin || !config.authEnabled);
+  els.logoutButton.classList.toggle("hidden", shouldLogin || !config.authEnabled);
+
+  if (shouldLogin) {
+    showSettings(false);
+    els.authEmail.focus();
+    return;
+  }
+
+  const needsSettings = config.authEnabled && config.authenticated && (!config.credentials?.hasOpenAI || !config.credentials?.hasClickUp);
+  showSettings(needsSettings);
+}
+
+async function login(event) {
+  event.preventDefault();
+  await authenticate("/api/auth/login", "Signing in", "Signed in");
+}
+
+async function signUp() {
+  await authenticate("/api/auth/signup", "Creating account", "Account ready");
+}
+
+async function authenticate(url, loadingText, successText) {
+  const email = els.authEmail.value.trim();
+  const password = els.authPassword.value;
+  if (!email || !password) return;
+
+  setAuthStatus(loadingText);
+  setAuthDisabled(true);
+
+  try {
+    const result = await fetchJson(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password })
+    });
+
+    if (result.needsConfirmation) {
+      setAuthStatus(result.message || "Check your email, then sign in.");
+      return;
+    }
+
+    setAuthStatus(successText);
+    els.authPassword.value = "";
+    await refreshSession();
+  } catch (error) {
+    setAuthStatus(error.message || "Authentication failed.");
+  } finally {
+    setAuthDisabled(false);
+  }
+}
+
+async function logout() {
+  await fetchJson("/api/auth/logout", { method: "POST" }).catch(() => ({}));
+  config = { authEnabled: true, authenticated: false };
+  renderShell();
+  setSetupStatus();
+}
+
+async function saveSettings(event) {
+  event.preventDefault();
+  const submitButton = els.settingsForm.querySelector("button[type='submit']");
+  submitButton.disabled = true;
+  submitButton.textContent = "Saving";
+  setSettingsStatus("Encrypting and saving credentials...");
+
+  try {
+    const result = await fetchJson("/api/user/credentials", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        openai_api_key: els.settingsOpenAI.value,
+        clickup_api_token: els.settingsClickUpToken.value,
+        clickup_list_id: els.settingsClickUpList.value
+      })
+    });
+
+    els.settingsForm.reset();
+    config.credentials = result.credentials;
+    config.hasOpenAI = result.credentials.hasOpenAI;
+    config.hasClickUp = result.credentials.hasClickUp;
+    setSettingsStatus("Saved securely.");
+    setSetupStatus();
+    if (result.credentials.hasOpenAI && result.credentials.hasClickUp) {
+      window.setTimeout(() => showSettings(false), 600);
+    }
+  } catch (error) {
+    setSettingsStatus(error.message || "Could not save settings.");
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = "Save Securely";
+  }
+}
+
+function setAuthDisabled(disabled) {
+  els.loginButton.disabled = disabled;
+  els.signupButton.disabled = disabled;
+}
+
+function setAuthStatus(message) {
+  els.authStatus.textContent = message || "";
+}
+
+function setSettingsStatus(message) {
+  els.settingsStatus.textContent = message || "";
+}
+
+function showSettings(show) {
+  els.settingsPanel.classList.toggle("hidden", !show);
+}
+
 function endHold() {
   holdActive = false;
   window.clearTimeout(stopTimer);
@@ -94,6 +238,12 @@ function endHold() {
 async function startRecording() {
   window.clearTimeout(stopTimer);
   if (starting || recording || finalizing) return;
+
+  if (!config.hasOpenAI) {
+    showSettings(Boolean(config.authEnabled));
+    setStatusText("OpenAI key needed", "Add your OpenAI API key in Settings before recording.");
+    return;
+  }
 
   starting = true;
   streamedTranscriptItems = new Set();
@@ -305,6 +455,12 @@ async function extractTasks() {
     return;
   }
 
+  if (!config.hasOpenAI) {
+    showSettings(Boolean(config.authEnabled));
+    setStatusText("OpenAI key needed", "Add your OpenAI API key in Settings before extracting tasks.");
+    return;
+  }
+
   els.extractButton.disabled = true;
   els.extractButton.textContent = "Extracting";
   setStatusText("Extracting task drafts", "Existing task cards will stay in place.");
@@ -355,6 +511,7 @@ async function addManualTask(event) {
   }
 
   if (!config.hasClickUp) {
+    showSettings(Boolean(config.authEnabled));
     task.statusText = "Add ClickUp setup before creating this task.";
     taskDrafts = [task, ...taskDrafts];
     renderTasks();
@@ -606,15 +763,26 @@ function setRecordingUi(isRecording, title, hint) {
 }
 
 function setSetupStatus() {
-  if (config.hasOpenAI && config.hasClickUp) {
-    els.status.textContent = "Ready";
+  const hasOpenAI = Boolean(config.hasOpenAI || config.credentials?.hasOpenAI);
+  const hasClickUp = Boolean(config.hasClickUp || config.credentials?.hasClickUp);
+  config.hasOpenAI = hasOpenAI;
+  config.hasClickUp = hasClickUp;
+
+  if (config.authEnabled && !config.authenticated) {
+    els.status.textContent = "Sign in";
+    els.status.className = "status-pill warn";
+    return;
+  }
+
+  if (hasOpenAI && hasClickUp) {
+    els.status.textContent = config.authEnabled ? "Ready Secure" : "Ready";
     els.status.className = "status-pill ready";
     return;
   }
 
   const missing = [];
-  if (!config.hasOpenAI) missing.push("OpenAI");
-  if (!config.hasClickUp) missing.push("ClickUp");
+  if (!hasOpenAI) missing.push("OpenAI");
+  if (!hasClickUp) missing.push("ClickUp");
   els.status.textContent = `Missing ${missing.join(" + ")}`;
   els.status.className = "status-pill warn";
 }
