@@ -9,16 +9,19 @@ create table if not exists public.user_credentials (
 
 alter table public.user_credentials enable row level security;
 
+drop policy if exists "Users can read their own credential status" on public.user_credentials;
 create policy "Users can read their own credential status"
   on public.user_credentials
   for select
   using (auth.uid() = user_id);
 
+drop policy if exists "Users can insert their own credentials" on public.user_credentials;
 create policy "Users can insert their own credentials"
   on public.user_credentials
   for insert
   with check (auth.uid() = user_id);
 
+drop policy if exists "Users can update their own credentials" on public.user_credentials;
 create policy "Users can update their own credentials"
   on public.user_credentials
   for update
